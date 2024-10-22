@@ -8,8 +8,8 @@ const User = require('./models/User');
 
 const app = express();
 
-// Lista de domínios permitidos
-const allowedOrigins = ['http://localhost:5173', 'http://localhost:5174'];
+// Configurar CORS usando a variável de ambiente
+const allowedOrigins = process.env.ALLOWED_ORIGINS.split(',');
 
 // Configurar CORS
 app.use(cors({
@@ -31,7 +31,6 @@ app.get('/', (req, res) => {
     res.status(200).json({ msg: 'Bem-vindo à nossa API!' });
 });
 
-// Registrar usuário
 // Registrar usuário
 app.post('/auth/register', async (req, res) => {
     const { name, email, password, confirmpassword, phone, cpf } = req.body;
@@ -66,7 +65,6 @@ app.post('/auth/register', async (req, res) => {
 
     try {
         await user.save();
-        // Retornando o usuário criado com o token (se necessário)
         res.status(201).json({ 
             msg: "Usuário criado com sucesso",
             user: {
@@ -80,7 +78,6 @@ app.post('/auth/register', async (req, res) => {
         res.status(500).json({ msg: "Aconteceu um erro no servidor, tente novamente" });
     }
 });
-
 
 // Rota de login
 app.post('/auth/login', async (req, res) => {
@@ -102,6 +99,7 @@ app.post('/auth/login', async (req, res) => {
 
     res.status(200).json({ msg: 'Login bem-sucedido', user });
 });
+
 
 // Conexão ao banco de dados
 const dbUser = process.env.DB_USER;
