@@ -9,19 +9,7 @@ const User = require('./models/User');
 const app = express();
 
 // Configurar CORS usando a variável de ambiente
-const allowedOrigins = process.env.ALLOWED_ORIGINS.split(',');
-
-// Configurar CORS
-app.use(cors({
-    origin: (origin, callback) => {
-        // Verifica se o domínio de origem está na lista de permitidos
-        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-            callback(null, origin);
-        } else {
-            callback(new Error('Não autorizado por CORS'));
-        }
-    }
-}));
+app.use(cors());
 
 // Configurar JSON - resposta
 app.use(express.json());
