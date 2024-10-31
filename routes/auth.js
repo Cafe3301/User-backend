@@ -26,6 +26,7 @@ router.get('/', (req, res) => {
 router.post('/register', async (req, res) => {
     const { name, email, password, confirmpassword, phone, cpf } = req.body;
 
+    // Verifique se todos os campos obrigatórios estão presentes
     if (!name || !email || !password || !phone || !cpf) {
         return res.status(422).json({ msg: 'Todos os campos são obrigatórios' });
     }
@@ -33,11 +34,13 @@ router.post('/register', async (req, res) => {
         return res.status(422).json({ msg: 'As senhas não conferem' });
     }
 
+    // Verifique se o email já está em uso
     const userExist = await User.findOne({ email });
     if (userExist) {
         return res.status(422).json({ msg: 'Por favor, use outro email' });
     }
 
+    // Verifique se o CPF já está em uso
     const cpfExist = await User.findOne({ cpf });
     if (cpfExist) {
         return res.status(422).json({ msg: 'Por favor, use outro CPF' });
