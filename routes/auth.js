@@ -98,6 +98,7 @@ router.post('/forgot-password', async (req, res) => {
         subject: 'Redefinição de Senha',
         text: `Clique no link para redefinir sua senha: ${process.env.BASE_URL}/reset-password/${token}`,
     };
+    
 
     transporter.sendMail(mailOptions, (error, info) => {
         if (error) {
