@@ -1,10 +1,9 @@
 const express = require('express');
-const User = require('../models/User');
 const bcrypt = require('bcrypt');
+const User = require('../models/User');
 
 const router = express.Router();
 
-// Rota para redefinir a senha
 router.post('/:token', async (req, res) => {
     const { token } = req.params;
     const { newPassword, confirmpassword } = req.body;
@@ -20,21 +19,17 @@ router.post('/:token', async (req, res) => {
         });
 
         if (!user) {
-            return res.status(400).json({ message: 'Token inválido ou expirado.' });
+            return res.status(404).json({ msg: 'Token inválido ou expirado' });
         }
 
-        const salt = await bcrypt.genSalt(12);
-        const passwordHash = await bcrypt.hash(newPassword, salt);
-
-        user.password = passwordHash;
-        user.resetPasswordToken = null; // Limpa o token
-        user.resetPasswordExpires = null; // Limpa a expiração
+        user.password = await bcrypt.hash(newPassword, 12);
+        user.resetPasswordToken = undefined;
+        user.resetPasswordExpires = undefined;
         await user.save();
 
-        res.status(200).json({ message: 'Senha redefinida com sucesso!' });
+        res.status(200).json({ msg: 'Senha redefinida com sucesso' });
     } catch (error) {
-        console.error('Erro ao redefinir a senha:', error);
-        res.status(500).json({ message: 'Erro ao redefinir a senha.' });
+        res.status(500).json({ msg: 'Erro ao redefinir a senha.' });
     }
 });
 

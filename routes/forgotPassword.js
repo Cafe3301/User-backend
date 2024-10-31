@@ -1,45 +1,42 @@
 const express = require('express');
-const crypto = require('crypto');
 const User = require('../models/User');
-const router = express.Router();
-const nodemailer = require('nodemailer');
+const bcrypt = require('bcrypt');
 
-router.post('/', async (req, res) => {
-    const { email } = req.body;
+const router = express.Router();
+
+// Rota para redefinir a senha
+router.post('/:token', async (req, res) => {
+    const { token } = req.params;
+    console.log('Token recebido:', token); // Log do token recebido
+    const { newPassword, confirmpassword } = req.body;
+
+    if (!newPassword || newPassword !== confirmpassword) {
+        return res.status(422).json({ msg: 'As senhas não conferem' });
+    }
 
     try {
-        const user = await User.findOne({ email });
+        const user = await User.findOne({
+            resetPasswordToken: token,
+            resetPasswordExpires: { $gt: Date.now() }, // Verifica se o token não expirou
+        });
+        console.log('Usuário encontrado:', user); // Log do usuário encontrado
+
         if (!user) {
-            return res.status(404).json({ message: 'Usuário não encontrado.' });
+            return res.status(404).json({ msg: 'Token inválido ou expirado.' });
         }
 
-        const token = crypto.randomBytes(20).toString('hex');
-        user.resetPasswordToken = token;
-        user.resetPasswordExpires = Date.now() + 3600000;
+        const salt = await bcrypt.genSalt(12);
+        const passwordHash = await bcrypt.hash(newPassword, salt);
+
+        user.password = passwordHash;
+        user.resetPasswordToken = undefined; // Limpa o token
+        user.resetPasswordExpires = undefined; // Limpa a expiração
         await user.save();
 
-        const transporter = nodemailer.createTransport({
-            host: process.env.SMTP_HOST,
-            port: process.env.SMTP_PORT,
-            secure: false,
-            auth: {
-                user: process.env.SMTP_USER,
-                pass: process.env.SMTP_PASS,
-            },
-        });
-
-        const mailOptions = {
-            to: email,
-            subject: 'Redefinição de Senha',
-            text: `Aqui está o link para redefinir sua senha: 
-                   http://localhost:3000/reset-password/${token}`,
-        };
-
-        await transporter.sendMail(mailOptions);
-        res.status(200).json({ message: 'Email enviado com sucesso!' });
+        res.status(200).json({ msg: 'Senha redefinida com sucesso' });
     } catch (error) {
-        console.error('Erro ao enviar email:', error);
-        res.status(500).json({ message: 'Erro ao enviar o email.' });
+        console.error('Erro ao redefinir a senha:', error);
+        res.status(500).json({ msg: 'Erro ao redefinir a senha.' });
     }
 });
 

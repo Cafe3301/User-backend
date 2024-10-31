@@ -2,31 +2,25 @@ const express = require('express');
 const bcrypt = require('bcrypt');
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
-const User = require('../models/User'); // Certifique-se de que o caminho para o modelo está correto
+const User = require('../models/User');
 
 const router = express.Router();
 
-// Configuração do transportador do Nodemailer
+// Configuração do Nodemailer
 const transporter = nodemailer.createTransport({
     host: 'smtp.zoho.com',
     port: 587,
     secure: false,
     auth: {
-        user: process.env.EMAIL_USER, // Seu e-mail
-        pass: process.env.EMAIL_PASS,  // Sua senha do e-mail
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
     },
 });
 
-// Rota pública
-router.get('/', (req, res) => {
-    res.status(200).json({ msg: 'Bem-vindo à nossa API!' });
-});
-
-// Registrar usuário
+// Registro de Usuário
 router.post('/register', async (req, res) => {
     const { name, email, password, confirmpassword, phone, cpf } = req.body;
 
-    // Verifique se todos os campos obrigatórios estão presentes
     if (!name || !email || !password || !phone || !cpf) {
         return res.status(422).json({ msg: 'Todos os campos são obrigatórios' });
     }
@@ -34,52 +28,30 @@ router.post('/register', async (req, res) => {
         return res.status(422).json({ msg: 'As senhas não conferem' });
     }
 
-    // Verifique se o email já está em uso
     const userExist = await User.findOne({ email });
-    if (userExist) {
-        return res.status(422).json({ msg: 'Por favor, use outro email' });
-    }
-
-    // Verifique se o CPF já está em uso
     const cpfExist = await User.findOne({ cpf });
-    if (cpfExist) {
-        return res.status(422).json({ msg: 'Por favor, use outro CPF' });
+    if (userExist || cpfExist) {
+        return res.status(422).json({ msg: 'Email ou CPF já em uso' });
     }
 
-    const salt = await bcrypt.genSalt(12);
-    const passwordHash = await bcrypt.hash(password, salt);
-
+    const passwordHash = await bcrypt.hash(password, 12);
     const user = new User({ name, email, password: passwordHash, phone, cpf });
 
     try {
         await user.save();
-
-        const mailOptions = {
+        transporter.sendMail({
             from: process.env.EMAIL_USER,
             to: email,
             subject: 'Confirmação de Registro',
-            text: `Olá ${name},\n\nSua conta foi criada com sucesso!\n\nObrigado,\nSua equipe.`,
-        };
-
-        transporter.sendMail(mailOptions, (error, info) => {
-            if (error) {
-                console.error('Erro ao enviar email:', error);
-                return res.status(500).json({ msg: 'Usuário criado, mas falha ao enviar email de confirmação' });
-            }
-            console.log('Email enviado:', info.response);
+            text: `Olá ${name},\n\nSua conta foi criada com sucesso!\n\nObrigado,\nSua equipe.`
         });
-
-        res.status(201).json({
-            msg: "Usuário criado com sucesso",
-            user: { name: user.name, email: user.email, cpf: user.cpf },
-            token: "seu_token_aqui" // Aqui você pode gerar um token JWT, se necessário
-        });
+        res.status(201).json({ msg: "Usuário criado com sucesso" });
     } catch (error) {
-        res.status(500).json({ msg: "Aconteceu um erro no servidor, tente novamente" });
+        res.status(500).json({ msg: "Erro ao registrar usuário" });
     }
 });
 
-// Rota para solicitar redefinição de senha
+// Solicitação de Redefinição de Senha
 router.post('/forgot-password', async (req, res) => {
     const { email } = req.body;
 
@@ -89,76 +61,27 @@ router.post('/forgot-password', async (req, res) => {
     }
 
     const token = crypto.randomBytes(32).toString('hex');
-
-    // Salvar o token e a data de expiração no usuário
     user.resetPasswordToken = token;
-    user.resetPasswordExpires = Date.now() + 3600000; // 1 hora de expiração
+    user.resetPasswordExpires = Date.now() + 3600000; // 1 hora
     await user.save();
 
-    const mailOptions = {
+    transporter.sendMail({
         from: process.env.EMAIL_USER,
         to: email,
         subject: 'Redefinição de Senha',
-        text: `Clique no link para redefinir sua senha: ${process.env.BASE_URL}/reset-password/${token}`,
-    };
-    
-
-    transporter.sendMail(mailOptions, (error, info) => {
-        if (error) {
-            console.error('Erro ao enviar email:', error);
-            return res.status(500).json({ msg: 'Erro ao enviar email de redefinição de senha' });
-        }
-        console.log('Email enviado:', info.response);
-        res.status(200).json({ msg: 'Email de redefinição de senha enviado' });
-    });
-});
-
-// Rota para redefinir a senha
-router.post('/reset-password/:token', async (req, res) => {
-    const { token } = req.params;
-    const { newPassword, confirmpassword } = req.body;
-
-    if (!newPassword || newPassword !== confirmpassword) {
-        return res.status(422).json({ msg: 'As senhas não conferem' });
-    }
-
-    // Verifique o token e a data de expiração
-    const user = await User.findOne({
-        resetPasswordToken: token,
-        resetPasswordExpires: { $gt: Date.now() } // Verifica se não está expirado
+        text: `Clique no link para redefinir sua senha: ${process.env.FRONTEND_URL}/reset-password/${token}`,
     });
 
-    if (!user) {
-        return res.status(404).json({ msg: 'Token inválido ou expirado' });
-    }
-
-    const salt = await bcrypt.genSalt(12);
-    const passwordHash = await bcrypt.hash(newPassword, salt);
-
-    user.password = passwordHash;
-    user.resetPasswordToken = undefined; // Limpa o token
-    user.resetPasswordExpires = undefined; // Limpa a expiração
-    await user.save();
-
-    res.status(200).json({ msg: 'Senha redefinida com sucesso' });
+    res.status(200).json({ msg: 'Email de redefinição de senha enviado' });
 });
 
-// Rota de login
+// Login
 router.post('/login', async (req, res) => {
     const { email, password } = req.body;
-
-    if (!email || !password) {
-        return res.status(422).json({ msg: 'Email e senha são obrigatórios' });
-    }
-
     const user = await User.findOne({ email });
-    if (!user) {
-        return res.status(404).json({ msg: 'Usuário não encontrado' });
-    }
 
-    const checkPassword = await bcrypt.compare(password, user.password);
-    if (!checkPassword) {
-        return res.status(422).json({ msg: 'Senha inválida' });
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+        return res.status(404).json({ msg: 'Credenciais inválidas' });
     }
 
     res.status(200).json({ msg: 'Login bem-sucedido', user });
